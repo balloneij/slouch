@@ -1,0 +1,268 @@
+#+title: Slouch
+
+An idiomatic Clojure interface to Apache CouchDB.
+
+TODO badges :)
+
+* Table of Contents
+
+- [[#features][Features]]
+- [[#installation][Installation]]
+- [[#quickstart][Quickstart]]
+- [[#api][API]]
+- [[#limitations][Limitations]]
+- [[#todo][TODO]]
+- [[#license][License]]
+
+* Features
+
+- *Ergonomic document API* - Documents are treated like Clojure atoms.
+  Under the hood, ~swap!~, ~deref~ / ~@~, and ~reset!~ read and write to CouchDB.
+- *Minimizes bandwith*
+  - [[https://github.com/ring-clojure/ring][Ring]] [[#ring-middleware][middleware]] caches document values per request.
+  - Recently used documents are cached and monitored via [[https://docs.couchdb.org/en/stable/api/database/changes.html][CouchDB /db/_changes]]
+    to avoid unnecessary polling.
+  - When a document is read from or written to CouchDB, the value is shared
+    by all document atoms of the same id.
+
+* Installation
+~slouch~ is available from Clojars(TODO LINK TO CLOJARS)
+
+#+begin_src clojure
+[com.balloneij.slouch "0.1.0"]
+#+end_src
+
+* Quickstart
+
+#+begin_src clojure
+(ns app.core
+  (:require [slouch.api :as slouch]))
+#+end_src
+
+#+begin_src clojure
+
+(def db (slouch/database {:url "http://localhost:5984"
+                          :name "albums"
+                          :username "admin"
+                          :password "hunter1"}))
+
+;; or
+
+(defn -main [& args]
+  (slouch/with-database [db {:url "http://localhost:5984"
+                             :name "albums"
+                             :username "admin"
+                             :password "hunter1"}]
+    ;; your code
+    ))
+
+#+end_src
+
+Documents
+
+#+begin_src clojure
+
+(let [doc (slouch/insert db {:score 0})]
+  (println "inserted: " @doc)
+  (swap! doc update :score inc)
+  (println "updated: " @doc)
+  (reset! doc {:score 0})
+  (println "reset: " @doc)
+  (slouch/delete db (slouch/id doc))
+  (println "deleted: " @doc))
+
+;; inserted: {:score 0 :_id "123" :_rev "123"}
+;; updated:  {:score 1 :_id "123" :_rev "123"}
+;; reset:    {:score 0 :_id "123" :_rev "123"}
+;; deleted:  nil
+
+#+end_src
+
+Views
+#+begin_src clojure
+
+(slouch/rows db :albums/by-artist {:start-key "ABBA"
+                                   :end-key "The Beatles"})
+;; => [{:name "Arrival" :artist "ABBA"}
+;;     {:name "Back in Black" :artist "AC/DC"}
+;;     {:name "Thriller" :artist "Michael Jackson"}
+;;     {:name "1" :artist "The Beatles"}]
+
+(-> (slouch/row db :albums/by-name "Thriller" {:include-docs? true})
+    (:_doc)
+    (swap! update :sales inc)
+    (:sales))
+;; => 70000001
+#+end_src
+
+* API
+** Database
+** Documents
+#+begin_src clojure
+;; Insert new document with random uuid
+(slouch/insert db {:name "21" :artist "21"})
+;; Insert a new document with a specific id
+(slouch/insert db "the-wall" {:name "The Wall" :artist "Pink Floyd"})
+
+;; Get a document by id
+(slouch/get db "abbey-road")
+;; Get a document by id, or insert it if it does not exist
+(slouch/get-or-insert db "spice" (fn [] {:name "Spice" :artist "Spice Girls"}))
+
+;; Remove a document, no matter the revision
+(slouch/remove db "the-wall")
+;; Remove a document at specific revision
+(slouch/remove db "the-wall" "3-2adcff8fb8b3f77825f627ad97464c80")
+
+;; ID of a document
+(slouch/id doc)
+;; Revision of the current doc (or nil if it doesn't exist)
+(slouch/rev doc)
+;; Check if a document exists
+(slouch/exists? doc)
+
+;; Get a document from CouchDB
+;; NOTE: Deref-ing will return the latest value unless called
+;;       within a snapshot context. See "Ring middleware" for more details
+(deref doc)
+@doc
+
+;; Like swapping a Clojure atom, but writes to CouchDB
+(swap! doc assoc :genre ["pop" "post-disco" "funk" "rock"])
+
+(let [old-val @doc
+      new-val {:name "Thriller" :artist "Michael Jackson"}]
+  ;; Set a new value iff the :_rev from an old value matches the rev
+  ;; of the current document in CouchDB
+  (compare-and-set! doc old-val new-val))
+
+;; Like reseting a Clojure atom, but writes to CouchDB
+(reset! doc {:name "Thriller" :artist "Michael Jackson"})
+#+end_src
+
+** Views
+
+#+begin_src clojure
+;; Query a view for :offset, :rows, and :total-rows. See "View options"
+(slouch/view db :albums/by-name)
+(slouch/view db :albums/by-name {:skip 20})
+
+;; Equivalent to (-> (slouch/view db ddoc-view opts) :rows)
+(slouch/rows db :albums/by-certification)
+(slouch/rows db :albums/by-certification {:key "platinum"})
+
+;; Equivalent to (-> (slouch/view db ddoc-view (merge opts {:key k})) :rows first)
+(slouch/row db :albums/by-name "millennium")
+(slouch/row db :albums/by-name "millennium" {:include-docs? true})
+#+end_src
+
+*** View options
+#+begin_src clojure
+{;; Include conflicts information in response. Ignored if include-docs isn’t true. Default is false.
+ :conflicts? false
+ ;; Return the documents in descending order by key. Default is false.
+ :descending? false
+ ;; Stop returning records when the specified key is reached.
+ :end-key {:name "wish-you-were-here"}
+ ;; Stop returning records when the specified document ID is reached. Ignored if end-key is not set.
+ :end-key-doc-id "255ce80b1928875f253f5fca670d0599"
+ ;; Group the results using the reduce function to a group or single row. Implies reduce is true and the maximum group-level. Default is false.
+ :group? false
+ ;; Specify the group level to be used. Implies group is true.
+ :group-level 2
+ ;; Include the associated document with each row. Default is false.
+ :include-docs? false
+ ;; Specifies whether the specified end key should be included in the result. Default is true.
+ :inclusive-end? true
+ ;; Return only documents that match the specified key.
+ :key {:name "boston"}
+ ;; Return only documents where the key matches one of the keys specified in the array.
+ :keys [{:name "millennium"} {:name "like-a-virgin"} {:name "purple-rain"}]
+ ;; Limit the number of the returned documents to the specified number.
+ :limit 20
+ ;; Use the reduction function. Default is true when a reduce function is defined.
+ :reduce? true
+ ;; Skip this number of records before starting to return the results. Default is 0.
+ :skip 0
+ ;; Sort returned rows. Setting this to false offers a performance boost. The total-rows and offset fields are not available when this is set to false. Default is true.
+ ;; See Sorting Returned Rows https://docs.couchdb.org/en/stable/api/ddoc/views.html#sorting-returned-rows
+ :sorted? true
+ ;; Whether or not the view results should be returned from a stable set of shards. Default is false.
+ :stable? false
+ ;; Return records starting with the specified key.
+ :start-key {:name "baby-one-more-time"}
+ ;; Return records starting with the specified document ID. Ignored if startkey is not set.
+ :start-key-doc-id "255ce80b1928875f253f5fca670d3e15"
+ ;; Whether or not the view in question should be updated prior to responding to the user. Supported values: true, false, :lazy. Default is true.
+ :update true
+ ;; Whether to include in the response an update-seq value indicating the sequence id of the database the view reflects. Default is false.
+ :update-seq? false}
+ #+end_src
+
+*** Unsupported Options
+#+begin_src clojure
+{;; Include the Base64-encoded content of attachments in the documents that are included if include-docs is true. Ignored if include-docs isn’t true. Default is false.
+ :attachments? false
+ ;; Include encoding information in attachment stubs if include-docs is true and the particular attachment is compressed. Ignored if include-docs isn’t true. Default is false.
+ :att-encoding-info? false
+ ;; Deprecated by CouchDB. Use :stable and :update instead.
+ ;;  :ok is equivalent to {:stable true :update false}
+ ;;  :update_after is equivalent to {:stable true :update lazy}
+ ;; The default behavior is equivalent to {:stable false :update true}.
+ :stale :ok}
+#+end_src
+** Ring middleware
+~wrap-db~ handles each request inside a /snapshot/.
+
+Inside a /snapshot/, the value of a document will stay the same throughout
+the duration of a request, unless an update occurs within the same /snapshot/.
+
+Therefore, don't be afraid to ~deref~ a document multiple times within
+a single request. At most, the document will be fetched from CouchDB one time.
+
+#+begin_src clojure
+(slouch/with-database [db config]
+  (-> handler
+      ;; Add :db to incoming requests and execute handler inside a snapshot context
+      (slouch/wrap-db db)
+      ;; or use a different key
+      (slouch/wrap-db :my-db db)
+      (run-webapp)))
+#+end_src
+* Limitations
+
+- No means for solving document conflicts
+- Cannot handle document attachments
+- No means for seamless failover to other CouchDB instances
+- Cannot solve world hunger
+
+* TODO
+** TODO Encode username and password so they aren't stored in mem as plaintext
+In case somewhere, somehow the db config gets ~prn-str~'ed (logs, stacktraces, etc.),
+it would be best if the username and password were at least base64 encoded.
+
+Maybe hide the values inside record and define a print-method to hide the password
+** TODO Add a size limit to documents added to cache
+** TODO Reducible, transducer-ready view result
+[[https://github.com/seancorfield/next-jdbc][next-jdbc]] provides ~next.jdbc/plan~ which is a cool way to stream
+and process incoming SQL results. It could be fun to expirement
+with a similar system for Slouch and test to see if it has any merit
+speeding up view queries
+
+** TODO Multiple CouchDB instances
+Support multiple CouchDB instances doing master-slave replication
+
+i.e.
+- 1 master - write-only
+- N replicas - read-only
+
+*** Use case
+A DBA could locate replicas at the same datacenters/device as the client, and then
+host the master in a central location.
+
+** TODO Support document attachments
+
+* License
+Copyright 2023 Isaac Ballone
+
+Distributed under [[LICENSE][the MIT License]].
