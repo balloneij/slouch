@@ -236,31 +236,31 @@ a single request. At most, the document will be fetched from CouchDB one time.
 - No means for seamless failover to other CouchDB instances
 - Cannot solve world hunger
 
-* TODO
-** TODO Encode username and password so they aren't stored in mem as plaintext
-In case somewhere, somehow the db config gets ~prn-str~'ed (logs, stacktraces, etc.),
-it would be best if the username and password were at least base64 encoded.
+* Goals
+- *Encode username and password so they aren't stored in mem as plaintext*
 
-Maybe hide the values inside record and define a print-method to hide the password
-** TODO Add a size limit to documents added to cache
-** TODO Reducible, transducer-ready view result
-[[https://github.com/seancorfield/next-jdbc][next-jdbc]] provides ~next.jdbc/plan~ which is a cool way to stream
-and process incoming SQL results. It could be fun to expirement
-with a similar system for Slouch and test to see if it has any merit
-speeding up view queries
+  In case somewhere, somehow the db config gets ~prn-str~'ed (logs, stacktraces, etc.),
+  it would be best if the username and password were at least base64 encoded.
 
-** TODO Multiple CouchDB instances
-Support multiple CouchDB instances doing master-slave replication
+  Maybe hide the values inside record and define a print-method to hide the password
+- *Add a size limit to documents added to cache*
+- *Reducible, transducer-ready view result*
+  [[https://github.com/seancorfield/next-jdbc][next-jdbc]] provides ~next.jdbc/plan~ which is a cool way to stream
+  and process incoming SQL results. It could be fun to expirement
+  with a similar system for Slouch and test to see if it has any merit
+  speeding up view queries
+- *Multiple CouchDB instances*
 
-i.e.
-- 1 master - write-only
-- N replicas - read-only
+  Support multiple CouchDB instances doing master-slave replication
 
-*** Use case
-A DBA could locate replicas at the same datacenters/device as the client, and then
-host the master in a central location.
+  i.e.
+  - 1 master - write-only
+  - N replicas - read-only
 
-** TODO Support document attachments
+  A DBA could locate replicas at the same datacenters/device as the client, and then
+  host the master in a central location.
+
+- *Support document attachments*
 
 * License
 Copyright 2023 Isaac Ballone
