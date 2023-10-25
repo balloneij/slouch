@@ -17,13 +17,13 @@ TODO badges :)
 * Features
 
 - *Ergonomic document API* - Documents are treated like Clojure atoms.
-  Under the hood, ~swap!~, ~deref~ / ~@~, and ~reset!~ read and write to CouchDB.
+
+  ~swap!~, ~deref~, and ~reset!~ operate on CouchDB documents.
 - *Minimizes bandwith*
-  - [[https://github.com/ring-clojure/ring][Ring]] [[#ring-middleware][middleware]] caches document values per request.
-  - Recently used documents are cached and monitored via [[https://docs.couchdb.org/en/stable/api/database/changes.html][CouchDB /db/_changes]]
-    to avoid unnecessary polling.
-  - When a document is read from or written to CouchDB, the value is shared
-    by all document atoms of the same id.
+  - Recently used documents are cached.
+  - Cached documents are monitored via [[https://docs.couchdb.org/en/stable/api/database/changes.html][/db/_changes]]
+    to poll for changes efficiently.
+  - [[https://github.com/ring-clojure/ring][Ring]] [[#ring-middleware][middleware]] snapshots documents during requests.
 
 * Installation
 ~slouch~ is available from Clojars(TODO LINK TO CLOJARS)

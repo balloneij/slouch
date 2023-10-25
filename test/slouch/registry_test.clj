@@ -2,9 +2,6 @@
   (:require [slouch.registry :as reg]
             [clojure.test :refer :all]))
 
-(deftest watch-test
-  )
-
 (deftest registry-test
   (testing "create, read, delete"
     (let [reg (reg/registry 15 (fn [_]))

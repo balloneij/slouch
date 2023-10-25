@@ -29,7 +29,7 @@
            (handler))))))
 
 (defn get-doc [db id]
-  (let [{:keys [registry http]} db]
+  (let [{:keys [http registry]} db]
     (or (snap/lookup id)
         (reg/lookup registry id)
         (->> (doc/get http id)
@@ -37,7 +37,7 @@
              (snap/save)))))
 
 (defn get-rev-doc [db id]
-  (let [{:keys [registry http]} db]
+  (let [{:keys [http registry]} db]
     (or (snap/lookup-rev id)
         (reg/lookup-rev registry id)
         (doc/rev http id))))
@@ -47,7 +47,7 @@
 
 (defn remove-doc
   ([db id]
-   (let [{:keys [registry http]} db]
+   (let [{:keys [http registry]} db]
      (loop [rev (or (reg/lookup-rev registry id)
                     (snap/lookup-rev id)
                     (doc/rev http id))]
@@ -55,36 +55,43 @@
          (recur (doc/rev http id))))
      true))
   ([db id rev]
-   (let [{:keys [registry http]} db]
+   (let [{:keys [http registry]} db]
      (if (doc/remove http id rev)
        (do (snap/delete id)
            (reg/delete registry id)
            true)
        false))))
 
-(defn insert-doc* [db id value]
-  (let [{:keys [registry http]} db]
-    (->> (doc/insert http id value)
-         (reg/save registry)
-         (snap/save))))
+(defn- insert-doc* [http registry id value]
+  (->> (doc/insert http id value)
+       (reg/save registry)
+       (snap/save)))
 
 (defn insert-doc
   ([db value]
-   (loop []
-     (or (insert-doc* db (random-uuid) value)
-         (recur))))
+   (let [{:keys [http registry]} db]
+     (loop []
+       (or (insert-doc* http registry (random-uuid) value)
+           (recur)))))
   ([db id value]
-   (or (insert-doc* db id value)
-       (throw+ {:type :slouch :error :duplicate-id}
-               (IllegalStateException.
-                (str "A document with an id '" id "' already exists"))))))
+   (let [{:keys [http registry]} db]
+     (or (insert-doc* http registry id value)
+         (throw+ {:type :slouch :error :duplicate-id}
+                 (IllegalStateException.
+                  (str "A document with an id '" id "' already exists")))))))
 
 (defn get-or-insert-doc [db id value-fn]
-  (let [value (delay (value-fn))]
+  (let [{:keys [http registry]} db
+        value (delay (value-fn))]
     (loop []
       (or (get-doc db id)
-          (insert-doc* db id @value)
+          (insert-doc* http registry id @value)
           (recur)))))
+
+(defn- update-doc* [http registry id rev value]
+  (->> (doc/try-replace http id rev value)
+       (reg/save registry)
+       (snap/save)))
 
 (defn swap [db id f & args]
   (let [{:keys [http registry]} db]
@@ -93,7 +100,7 @@
                    (doc/get http id))]
       (let [rev (:_rev doc)
             value (apply f doc args)]
-        (or (doc/try-replace http id rev value)
+        (or (update-doc* http registry id rev value)
             (recur (doc/get http id)))))))
 
 (defn reset [db id value]
@@ -101,9 +108,10 @@
     (loop [rev (or (reg/lookup-rev registry id)
                    (snap/lookup-rev id)
                    (doc/rev http id))]
-      (or (doc/try-replace http id rev value)
+      (or (update-doc* http registry id rev value)
           (recur (doc/rev http id))))))
 
 (defn compare-and-set [db id old new]
-  (some? (doc/try-replace (:http db) id (:_rev old) new)))
-
+  (let [{:keys [http registry]} db
+        rev (:_rev old)]
+    (some? (update-doc* http registry id rev new))))

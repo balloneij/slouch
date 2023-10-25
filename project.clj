@@ -1,5 +1,5 @@
 (defproject slouch "0.0.0"
-  :description "An idiomatic Clojure api for CouchDB"
+  :description "An idiomatic Clojure interface to Apache CouchDB"
   :url "https://github.com/balloneij/slouch"
   :license {:name "The MIT License"
             :url "http://opensource.org/licenses/MIT"}
@@ -10,4 +10,10 @@
                  [clojure.java-time "1.2.0"]
                  [clj-http "3.12.3"]
                  [cheshire "5.11.0"]]
-  :repl-options {:init-ns slouch.core})
+  :global-vars {*warn-on-reflection* true}
+  :repl-options {:init-ns slouch.api}
+  :test-selectors {:default     #(not= % :ignore)
+                   :ignore      :ignore
+                   :integration :integration
+                   :unit        #(not-any? % #{:integration :ignore})
+                   :all         (constantly true)})

@@ -41,7 +41,7 @@
      (eventually* pred#)))
 
 (defn doc [id]
-  (let [rev (:_rev (or (doc/insert *http* {} id)
+  (let [rev (:_rev (or (doc/insert *http* id {})
                        (doc/get *http* id)))]
     (is (some? rev))
     rev))
@@ -54,7 +54,7 @@
 (defn delete-doc [id rev]
   (is (doc/remove *http* id rev)))
 
-(deftest monitor-watchlist-test
+(deftest ^:integration monitor-watchlist-test
   (testing "updated docs"
     (let [id (random-id)
           rev (doc id)]
@@ -71,7 +71,7 @@
       (delete-doc id rev)
       (is (eventually (nil? (feed/doc-revision *feed* id)))))))
 
-(deftest update-watchlist-test
+(deftest ^:integration update-watchlist-test
   (testing "change watchlist"
     (let [id-a (random-id)
           id-b (random-id)

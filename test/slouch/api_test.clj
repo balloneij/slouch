@@ -5,4 +5,3 @@
             [clojure.test :as t]))
 
 
-(sut/database test-feed-config)

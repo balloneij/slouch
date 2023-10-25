@@ -203,3 +203,6 @@
     (.write "#")
     (.write (.getName CouchDocument))
     (.write (pr-str (select-keys doc [:id])))))
+
+(defn lmao [f]
+  (.close f))
