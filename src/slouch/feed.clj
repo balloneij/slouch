@@ -127,6 +127,7 @@
         daemon-f ^Runnable (partial change-feed middleware config revision doc-ids-ch)]
     {:revision revision
      :doc-ids-ch doc-ids-ch
+     :registry-watch-f (fn [doc-ids] (a/>!! doc-ids-ch doc-ids))
      :daemon (doto (Thread. daemon-f "doc-change-feed") (.start))}))
 
 (defn stop-feed [feed]

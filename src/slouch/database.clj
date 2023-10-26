@@ -42,6 +42,9 @@
         (reg/lookup-rev registry id)
         (doc/rev http id))))
 
+(defn value-doc [db id]
+  (apply dissoc (get-doc db id) doc/metadata-keys))
+
 (defn exists? [db id]
   (some? (get-rev-doc db id)))
 
@@ -71,7 +74,7 @@
   ([db value]
    (let [{:keys [http registry]} db]
      (loop []
-       (or (insert-doc* http registry (random-uuid) value)
+       (or (insert-doc* http registry (str (random-uuid)) value)
            (recur)))))
   ([db id value]
    (let [{:keys [http registry]} db]

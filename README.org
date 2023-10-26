@@ -34,48 +34,54 @@ TODO badges :)
 
 * Quickstart
 
+Everything you need is in the ~slouch.api~ namespace.
+
 #+begin_src clojure
 (ns app.core
   (:require [slouch.api :as slouch]))
 #+end_src
 
+Create a database.
+
 #+begin_src clojure
 
-(def db (slouch/database {:url "http://localhost:5984"
-                          :name "albums"
-                          :username "admin"
-                          :password "hunter1"}))
+(with-open [db (slouch/database {:url "http://localhost:5984"
+                                 :name "albums"
+                                 :username "admin"
+                                 :password "hunter1"})]
+  ;; your code
+  )
 
 ;; or
 
-(defn -main [& args]
-  (slouch/with-database [db {:url "http://localhost:5984"
-                             :name "albums"
-                             :username "admin"
-                             :password "hunter1"}]
-    ;; your code
-    ))
+(slouch/with-database [db {:url "http://localhost:5984"
+                           :name "albums"
+                           :username "admin"
+                           :password "hunter1"}]
+  ;; your code
+  )
 
 #+end_src
 
-Documents
+Documents are like atoms.
 
 #+begin_src clojure
+(let [doc (slouch/insert db {:sales 0})]
+  (println @doc)
+  ;; {:sales 0, :_id 5dde5901-6ee6-4084-a18e-b58f4487e4a2, :_rev 1-ea366df7bb92694d7de64184343c080e}
 
-(let [doc (slouch/insert db {:score 0})]
-  (println "inserted: " @doc)
-  (swap! doc update :score inc)
-  (println "updated: " @doc)
-  (reset! doc {:score 0})
-  (println "reset: " @doc)
-  (slouch/delete db (slouch/id doc))
-  (println "deleted: " @doc))
+  (swap! doc update :sales inc)
+  (println @doc)
+  ;; {:sales 1, :_id 5dde5901-6ee6-4084-a18e-b58f4487e4a2, :_rev 2-68fb51089122a02a4d24f0910532b0f0}
 
-;; inserted: {:score 0 :_id "123" :_rev "123"}
-;; updated:  {:score 1 :_id "123" :_rev "123"}
-;; reset:    {:score 0 :_id "123" :_rev "123"}
-;; deleted:  nil
+  (reset! doc {:sales 0})
+  (println @doc)
+  ;; {:sales 0, :_id 5dde5901-6ee6-4084-a18e-b58f4487e4a2, :_rev 3-895e6de5e9418a64d7946247459bc769}
 
+  (slouch/remove db (slouch/id doc))
+  (println (slouch/exists? doc))
+  ;; false
+  )
 #+end_src
 
 Views
@@ -100,7 +106,7 @@ Views
 ** Documents
 #+begin_src clojure
 ;; Insert new document with random uuid
-(slouch/insert db {:name "21" :artist "21"})
+(slouch/insert db {:name "21" :artist "Adele"})
 ;; Insert a new document with a specific id
 (slouch/insert db "the-wall" {:name "The Wall" :artist "Pink Floyd"})
 
@@ -151,7 +157,7 @@ Views
 (slouch/rows db :albums/by-certification)
 (slouch/rows db :albums/by-certification {:key "platinum"})
 
-;; Equivalent to (-> (slouch/view db ddoc-view (merge opts {:key k})) :rows first)
+;; Equivalent to (-> (slouch/view db ddoc-view (merge opts {:key k :limit 1})) :rows first)
 (slouch/row db :albums/by-name "millennium")
 (slouch/row db :albums/by-name "millennium" {:include-docs? true})
 #+end_src
@@ -231,10 +237,10 @@ a single request. At most, the document will be fetched from CouchDB one time.
 #+end_src
 * Limitations
 
-- No means for solving document conflicts
-- Cannot handle document attachments
-- No means for seamless failover to other CouchDB instances
-- Cannot solve world hunger
+- No means for solving document conflicts.
+- Cannot handle document attachments.
+- No means for seamless failover to other CouchDB instances.
+- Cannot solve world hunger.
 
 * Goals
 - *Encode username and password so they aren't stored in mem as plaintext*
@@ -242,16 +248,22 @@ a single request. At most, the document will be fetched from CouchDB one time.
   In case somewhere, somehow the db config gets ~prn-str~'ed (logs, stacktraces, etc.),
   it would be best if the username and password were at least base64 encoded.
 
-  Maybe hide the values inside record and define a print-method to hide the password
+  Maybe hide the values inside record and define a print-method to hide the password.
 - *Add a size limit to documents added to cache*
 - *Reducible, transducer-ready view result*
+
   [[https://github.com/seancorfield/next-jdbc][next-jdbc]] provides ~next.jdbc/plan~ which is a cool way to stream
   and process incoming SQL results. It could be fun to expirement
   with a similar system for Slouch and test to see if it has any merit
-  speeding up view queries
+  speeding up view queries.
+
+- *Lazily get ~rows~*
+  It could be more efficiently to paginate rows results. For example, limit 100 records and then lazy-seq
+  to get more.
+
 - *Multiple CouchDB instances*
 
-  Support multiple CouchDB instances doing master-slave replication
+  Support multiple CouchDB instances doing master-slave replication.
 
   i.e.
   - 1 master - write-only
@@ -263,6 +275,6 @@ a single request. At most, the document will be fetched from CouchDB one time.
 - *Support document attachments*
 
 * License
-Copyright 2023 Isaac Ballone
+Copyright 2023 Isaac Ballone.
 
 Distributed under [[LICENSE][the MIT License]].

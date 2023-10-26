@@ -9,6 +9,43 @@
   `(when-not (~pred ~x)
      (throw (IllegalArgumentException. ~(str (pr-str x) " " msg)))))
 
+(defprotocol Document
+  (id [doc]
+    "Returns the document id.")
+  (rev [doc]
+    "Returns the document revision or nil if the document no longer exists.")
+  (exists? [doc]
+    "Returns true if the document exists.")
+  (value [doc]
+    "Similar to (deref doc), but removes CouchDB metadata keys like :_rev and :_id"))
+
+(defrecord CouchDocument [db id]
+  Document
+  (id [_] id)
+  (rev [_] (db/get-rev-doc db id))
+  (exists? [_] (db/exists? db id))
+  (value [_] (db/value-doc db id))
+  IRef
+  (deref [_] (db/get-doc db id))
+  IAtom
+  (swap [_ f] (db/swap db id f))
+  (swap [_ f arg] (db/swap db id f arg))
+  (swap [_ f arg1 arg2] (db/swap db id f arg1 arg2))
+  (swap [_ f x y args] (apply db/swap db id f x y args))
+  (compareAndSet [_ old new]
+  ;; TODO ASSERT ARGS OLD ID IS THE SAME AND REV EXISTS
+    (db/compare-and-set db id old new))
+  (reset [_ newval] (db/reset db id newval)))
+
+(defn document [db id]
+  (CouchDocument. db id))
+
+(defmethod print-method CouchDocument [doc ^Writer writer]
+  (doto writer
+    (.write "#")
+    (.write (.getName CouchDocument))
+    (.write (pr-str (select-keys doc [:id])))))
+
 (defprotocol Database
   (insert [db value] [db id value]
     "Inserts a document. Returns the inserted document. Throws if the provided `id` already exists.")
@@ -79,27 +116,30 @@
 
 (extend-type CouchDatabase
   Database
-  (insert [db value]
-    (assert-arg map? value "must be a map")
-    (db/insert-doc db value))
-  (insert [db id value]
-    (assert-arg string? id "must be a string")
-    (assert-arg map? value "must be a map")
-    (db/insert-doc db id value))
-  (remove [db id]
-    (assert-arg string? id "must be a string")
-    (db/remove-doc db id))
-  (remove [db id rev]
-    (assert-arg string? id "must be a string")
-    (assert-arg string? rev "must be a string")
-    (db/remove-doc db id rev))
+  (insert
+    ([db value]
+     (assert-arg map? value "must be a map")
+     (document db (:_id (db/insert-doc db value))))
+    ([db id value]
+     (assert-arg string? id "must be a string")
+     (assert-arg map? value "must be a map")
+     (document db (:_id (db/insert-doc db id value)))))
+  (remove
+    ([db id]
+     (assert-arg string? id "must be a string")
+     (db/remove-doc db id))
+    ([db id rev]
+     (assert-arg string? id "must be a string")
+     (assert-arg string? rev "must be a string")
+     (db/remove-doc db id rev)))
   (get [db id]
     (assert-arg string? id "must be a string")
-    (db/get-doc db id))
+    (when-let [id (:_id (db/get-doc db id))]
+      (document db id)))
   (get-or-insert [db id value-fn]
     (assert-arg string? id "must be a string")
     (assert-arg ifn? value-fn "must be a function")
-    (db/get-or-insert-doc db id value-fn)))
+    (document db (:_id (db/get-or-insert-doc db id value-fn)))))
 
 (defmethod print-method CouchDatabase [db ^Writer writer]
   (doto writer
@@ -138,6 +178,7 @@
   :cache-doc-ttl - Minutes to keep documents stored in memory
                    default: 15
   "
+  ^CouchDatabase
   [{:as config
     :keys [url name
            username password insecure?
@@ -164,45 +205,19 @@
   (assert-arg pos? feed-refresh-interval "must be a postive number")
   (assert-arg pos? cache-doc-ttl "must be a postive number")
   (assert-arg #(not (neg? %)) socket-timeout "must be a postive number or zero")
-  (-> config
+  (-> {:url url :name name :username username :password password
+       :insecure? insecure? :pool-threads pool-threads
+       :pool-timeout pool-timeout :connection-timeout connection-timeout
+       :socket-timeout socket-timeout :session-auth-threshold session-auth-threshold
+       :session-timing-error session-timing-error :feed-refresh-interval feed-refresh-interval
+       :cache-doc-ttl cache-doc-ttl}
       (db/init)
       (map->CouchDatabase)))
 
 (defmacro with-database
   "Same as (with-open [sym (database config)])"
-  {:style/indent 1}
+  {:style/indent 1
+   :clj-kondo/lint-as 'clojure.core/with-open}
   [binding & body]
   `(with-open [~(first binding) (database ~(second binding))]
      ~@body))
-
-(defprotocol Document
-  (id [doc]
-    "Returns the document id.")
-  (rev [doc]
-    "Returns the document revision or nil if the document no longer exists.")
-  (exists? [doc]
-    "Returns true if the document exists."))
-
-(defrecord CouchDocument [db id]
-  Document
-  (id [_] id)
-  (rev [_] (db/get-rev-doc db id))
-  (exists? [_] (db/exists? db id))
-  IRef
-  (deref [_] (db/get-doc db id))
-  IAtom
-  (swap [_ f] (db/swap db id f))
-  (swap [_ f arg] (db/swap db id f arg))
-  (swap [_ f arg1 arg2] (db/swap db id f arg1 arg2))
-  (swap [_ f x y args] (apply db/swap db id f x y args))
-  (compareAndSet [_ old new] (db/compare-and-set db id old new))
-  (reset [_ newval] (db/reset db id newval)))
-
-(defmethod print-method CouchDocument [doc ^Writer writer]
-  (doto writer
-    (.write "#")
-    (.write (.getName CouchDocument))
-    (.write (pr-str (select-keys doc [:id])))))
-
-(defn lmao [f]
-  (.close f))
