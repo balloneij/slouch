@@ -4,6 +4,7 @@
    [slouch.api :as slouch]
    [slouch.document :as doc]
    [slouch.util :as util]
+   [slouch.view :as view]
    [clojure.test :refer :all])
   (:import [slouch.api CouchDocument]))
 
@@ -14,6 +15,10 @@
     (and (some? rev)
          (pos? (util/parse-rev-iteration rev)))
     (catch Exception _ false)))
+
+(slouch/with-database [db db-config]
+  (-> (slouch/row db :albums/by-name "asdfasdf" {:include-docs? true})
+      ))
 
 (deftest ^:integration api-test
   (testing "README.org quickstart"

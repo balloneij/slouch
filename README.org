@@ -153,13 +153,29 @@ Views
 (slouch/view db :albums/by-name)
 (slouch/view db :albums/by-name {:skip 20})
 
-;; Equivalent to (-> (slouch/view db ddoc-view opts) :rows)
+;; Equivalent to (:rows (slouch/view db ddoc-view opts))
 (slouch/rows db :albums/by-certification)
 (slouch/rows db :albums/by-certification {:key "platinum"})
 
-;; Equivalent to (-> (slouch/view db ddoc-view (merge opts {:key k :limit 1})) :rows first)
-(slouch/row db :albums/by-name "millennium")
-(slouch/row db :albums/by-name "millennium" {:include-docs? true})
+;; Equivalent to (first (:rows (slouch/view db ddoc-view (merge opts {:key k :limit 1}))))
+(slouch/row db :albums/by-name "Millennium")
+(slouch/row db :albums/by-name "Millennium" {:include-docs? true})
+
+;; Equivalent to (->> (slouch/view db ddoc-view opts)
+;;                    :rows
+;;                    (map :doc))
+(slouch/docs db :albums/by-name)
+(slouch/docs db :albums/by-name {:start-key "1" :end-key "Thriller"})
+
+;; Equivlanet to
+;; (-> (view db ddoc-view (merge opts {:key k
+;;                                     :limit 1
+;;                                     :include-docs? true}))
+;;     :rows
+;;     first
+;;     :doc)
+(slouch/doc db :albums/by-name "Thriller")
+(slouch/doc db :albums/by-name "Thriller" {:stable? true})
 #+end_src
 
 *** View options
