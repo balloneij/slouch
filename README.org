@@ -362,7 +362,7 @@ a single request. At most, the document will be fetched from CouchDB one time.
 
 - *Support document attachments*
 * Changelog
-- `0.1.0` Initial release
+- ~0.1.0~ Initial release
 * License
 Copyright 2023 Isaac Ballone.
 
