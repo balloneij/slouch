@@ -1,4 +1,4 @@
-(defproject com.balloneij/slouch "0.0.0"
+(defproject com.balloneij/slouch "0.1.0"
   :description "An idiomatic Clojure interface to Apache CouchDB"
   :url "https://github.com/balloneij/slouch"
   :license {:name "The MIT License"

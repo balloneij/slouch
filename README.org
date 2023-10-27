@@ -18,6 +18,7 @@ An idiomatic Clojure interface to Apache CouchDB.
   - [[#ring-middleware][Ring middleware]]
 - [[#limitations][Limitations]]
 - [[#goals][Goals]]
+- [[#changelog][Changelog]]
 - [[#license][License]]
 
 * Features
@@ -34,7 +35,7 @@ An idiomatic Clojure interface to Apache CouchDB.
 ~slouch~ is available from [[https://clojars.org/com.balloneij/slouch][Clojars]].
 
 #+begin_src clojure
-[com.balloneij/slouch "0.0.0"]
+[com.balloneij/slouch "0.1.0"]
 #+end_src
 
 * Quickstart
@@ -93,15 +94,13 @@ Query views. See [[#views][API]].
 
 #+begin_src clojure
 
-(slouch/rows db :albums/by-artist {:start-key "ABBA"
-                                   :end-key "The Beatles"})
-;; => [{:name "Arrival" :artist "ABBA"}
-;;     {:name "Back in Black" :artist "AC/DC"}
-;;     {:name "Thriller" :artist "Michael Jackson"}
-;;     {:name "1" :artist "The Beatles"}]
+(slouch/rows db :albums/by-artist {:key "ABBA"})
+;; => [{:key "ABBA" :value {:name "Arrival"}}
+;;     {:key "ABBA" :value {:name "Voyage"}}
+;;     {:key "ABBA" :value {:name "Waterloo"}}]
 
 (-> (slouch/row db :albums/by-name "Thriller" {:include-docs? true})
-    (:_doc)
+    (:doc)
     (swap! update :sales inc)
     (:sales))
 ;; => 70000001
@@ -362,7 +361,8 @@ a single request. At most, the document will be fetched from CouchDB one time.
   host the master in a central location.
 
 - *Support document attachments*
-
+* Changelog
+- `0.1.0` Initial release
 * License
 Copyright 2023 Isaac Ballone.
 

@@ -42,13 +42,14 @@
         (doc/rev http id))))
 
 (defn- deref* [db id]
-  ;; TODO Throw if no longer exists
   (let [{:keys [http registry]} db]
     (or (snap/lookup id)
         (reg/lookup registry id)
         (->> (doc/get http id)
              (reg/save registry)
-             (snap/save)))))
+             (snap/save))
+        (throw+ {:type :slouch :error :does-not-exist}
+                nil "Document no longer exists"))))
 
 (defn- swap* [db id f & args]
   (let [{:keys [http registry]} db]
@@ -61,10 +62,10 @@
             (recur (doc/get http id)))))))
 
 (defn- compare-and-set* [db id old new]
-  ;; TODO ASSERT ARGS OLD ID IS THE SAME AND REV EXISTS
   (let [{:keys [http registry]} db
         rev (:_rev old)]
-    (some? (try-replace http registry id rev new))))
+    (and (string? rev)
+         (some? (try-replace http registry id rev new)))))
 
 (defn- reset* [db id value]
   (let [{:keys [http registry]} db]
@@ -203,18 +204,29 @@
 (defn- upgrade-document [db doc]
   (document db (:_id doc)))
 
+(defn- map-arg [x]
+  (if (map? x) x (into {} x)))
+
+(defn- string-arg [x]
+  (if (some? x)
+    (str x)
+    (NullPointerException. "Arg should not be nil")))
+
 (defn- try-insert [http registry id value]
   (->> (doc/insert http id value)
        (save registry)))
 
 (defn- insert*
   ([db value]
-   (let [{:keys [http registry]} db]
+   (let [{:keys [http registry]} db
+         value (map-arg value)]
      (loop []
        (or (try-insert http registry (str (random-uuid)) value)
            (recur)))))
   ([db id value]
-   (let [{:keys [http registry]} db]
+   (let [{:keys [http registry]} db
+         id (string-arg id)
+         value (map-arg value)]
      (or (try-insert http registry id value)
          (throw+ {:type :slouch :error :duplicate-id}
                  (IllegalStateException.
@@ -222,7 +234,8 @@
 
 (defn- remove*
   ([db id]
-   (let [{:keys [http registry]} db]
+   (let [{:keys [http registry]} db
+         id (string-arg id)]
      (loop [rev (or (reg/lookup-rev registry id)
                     (snap/lookup-rev id)
                     (doc/rev http id))]
@@ -230,7 +243,9 @@
          (recur (doc/rev http id))))
      true))
   ([db id rev]
-   (let [{:keys [http registry]} db]
+   (let [{:keys [http registry]} db
+         id (string-arg id)
+         rev (string-arg rev)]
      (if (doc/remove http id rev)
        (do (snap/delete id)
            (reg/delete registry id)
@@ -238,7 +253,8 @@
        false))))
 
 (defn- get* [db id]
-  (let [{:keys [http registry]} db]
+  (let [{:keys [http registry]} db
+        id (string-arg id)]
     (or (snap/lookup id)
         (reg/lookup registry id)
         (->> (doc/get http id)
@@ -247,6 +263,7 @@
 
 (defn- get-or-insert* [db id value-fn]
   (let [{:keys [http registry]} db
+        id (string-arg id)
         value (delay (value-fn))]
     (loop []
       (or (get* db id)
@@ -290,29 +307,20 @@
   Database
   (insert
     ([db value]
-     (assert-arg map? value "must be a map")
      (->> (insert* db value)
           (upgrade-document db)))
     ([db id value]
-     (assert-arg string? id "must be a string")
-     (assert-arg map? value "must be a map")
      (->> (insert* db id value)
           (upgrade-document db))))
   (remove
     ([db id]
-     (assert-arg string? id "must be a string")
      (remove* db id))
     ([db id rev]
-     (assert-arg string? id "must be a string")
-     (assert-arg string? rev "must be a string")
      (remove* db id rev)))
   (get [db id]
-    (assert-arg string? id "must be a string")
     (when-let [doc (get* db id)]
       (upgrade-document db doc)))
   (get-or-insert [db id value-fn]
-    (assert-arg string? id "must be a string")
-    (assert-arg ifn? value-fn "must be a function")
     (->> (get-or-insert* db id value-fn)
          (upgrade-document db)))
   (view
