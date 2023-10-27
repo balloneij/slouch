@@ -10,8 +10,14 @@ An idiomatic Clojure interface to Apache CouchDB.
 - [[#installation][Installation]]
 - [[#quickstart][Quickstart]]
 - [[#api][API]]
+  - [[#database][Database]]
+    - [[#database-config][Config]]
+  - [[#documents][Documents]]
+  - [[#views][Views]]
+    - [[#view-options][Options]]
+  - [[#ring-middleware][Ring middleware]]
 - [[#limitations][Limitations]]
-- [[#todo][TODO]]
+- [[#goals][Goals]]
 - [[#license][License]]
 
 * Features
@@ -103,6 +109,60 @@ Query views. See [[#views][API]].
 
 * API
 ** Database
+
+Slouch only interfaces with one database on a CouchDB server at a time.
+
+#+begin_src clojure
+;; Database is closeable. It's meant to be used in with-open i.e. try with resources
+;; to ensure the underlying processes stop and thread pool resources get released.
+(slouch/database {:url "http://localhost:5984" :name "albums"
+                  :username "webapp-user" :password "super-secret"})
+
+;; Shorthand for (with-open [db (slouch/database config)])
+(with-database [db {:url "http://localhost:5984" :name "albums"
+                    :username "webapp-user" :password "super-secret"}])
+#+end_src
+
+*** Database config
+#+begin_src clojure
+{;; CouchDB url.
+ :url "http://localhost:5984"
+ ;; The name of the database.
+ :name "albums"
+ ;; Credentials.
+ :username "webapp-user"
+ :password "super-secret"
+ ;; Whether to allow insecure https connections. Default is false.
+ :insecure? false
+ ;; Size of thread pool for http connections to CouchDB. Default is 8.
+ :pool-threads 8
+ ;; Seconds to keep connections open before automatically closing them.
+ ;; Default is 60 seconds.
+ :pool-timeout 60
+ ;; Milliseconds to wait before aborting a new connection attempt,
+ ;; or 0, meaning no timeout (not recommended). Default is 5000 ms.
+ :connection-timeout 5000
+ ;; Milliseconds of data silence to wait before abandoning an established connection,
+ ;; or 0, meaning no timeout (not recommended). Default is 5000 ms.
+ :socket-timeout 5000
+ ;; Seconds of session time remaining before reauthenticating.
+ ;; Default is 60 seconds.
+ :session-auth-threshold 60
+ ;; Seconds remaining before considering a session expired. At a minimum,
+ ;; consider setting this value greater than socket-timeout + connection-timeout.
+ ;; Default 30 seconds.
+ :session-timing-error 30
+ ;; Milliseconds to keep a continuous connection open on /db/_changes to
+ ;; watch for updates to documents stored in cache. A lower interval means
+ ;; cache documents are added/removed to the watch more quickly to the watch list,
+ ;; at the expense of reopening connections more frequently.
+ ;; Default 10000 ms.
+ :feed-refresh-interval 10000
+ ;; Minutes to keep documents stored in memory.
+ ;; Default 15 min.
+ :cache-doc-ttl 15}
+#+end_src
+
 ** Documents
 #+begin_src clojure
 ;; Insert new document with random uuid
@@ -148,14 +208,14 @@ Query views. See [[#views][API]].
 
 ** Views
 
-src_clojure{(slouch/view db ddoc-view opts)} is the main interface for
+~(slouch/view db ddoc-view opts)~ is the main interface for
 querying CouchDB views. Additional functions are provided to make working
 with the results more ergonomic.
 
 To query a view, provide the design document and view name by one of two means:
 
-- a vector src_clojure{["design-doc" "view-name"]}.
-- a namespaced keyword src_clojure{:design-doc/view-name}.
+- a vector ~["design-doc" "view-name"]~.
+- a namespaced keyword ~:design-doc/view-name~.
 
 All view functions take [[#view-options][view options]].
 
@@ -169,8 +229,8 @@ All view functions take [[#view-options][view options]].
 (slouch/rows db :albums/by-certification {:key "platinum"})
 
 ;; Equivalent to (first (:rows (slouch/view db ddoc-view (merge opts {:key k :limit 1}))))
-(slouch/row db :albums/by-name "Millennium")
-(slouch/row db :albums/by-name "Millennium" {:include-docs? true})
+(slouch/row db ["albums" "by-name"] "Millennium")
+(slouch/row db ["albums" "by-name"] "Millennium" {:include-docs? true})
 
 ;; Equivalent to (->> (slouch/view db ddoc-view opts)
 ;;                    :rows
