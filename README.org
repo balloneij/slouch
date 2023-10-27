@@ -1,8 +1,8 @@
 #+title: Slouch
 
-An idiomatic Clojure interface to Apache CouchDB.
+[[https://clojars.org/com.balloneij/slouch][file:https://img.shields.io/clojars/v/com.balloneij/slouch.svg]]
 
-TODO badges :)
+An idiomatic Clojure interface to Apache CouchDB.
 
 * Table of Contents
 
@@ -17,19 +17,18 @@ TODO badges :)
 * Features
 
 - *Ergonomic document API* - Documents are treated like Clojure atoms.
-
-  ~swap!~, ~deref~, and ~reset!~ operate on CouchDB documents.
+  - ~swap!~, ~deref~, and ~reset!~ operate on CouchDB documents.
 - *Minimizes bandwith*
   - Recently used documents are cached.
-  - Cached documents are monitored via [[https://docs.couchdb.org/en/stable/api/database/changes.html][/db/_changes]]
+  - Cached documents are monitored via the [[https://docs.couchdb.org/en/stable/api/database/changes.html][CouchDB changes endpoint]]
     to poll for changes efficiently.
   - [[https://github.com/ring-clojure/ring][Ring]] [[#ring-middleware][middleware]] snapshots documents during requests.
 
 * Installation
-~slouch~ is available from Clojars(TODO LINK TO CLOJARS)
+~slouch~ is available from [[https://clojars.org/com.balloneij/slouch][Clojars]].
 
 #+begin_src clojure
-[com.balloneij.slouch "0.1.0"]
+[com.balloneij/slouch "0.0.0"]
 #+end_src
 
 * Quickstart
@@ -41,7 +40,7 @@ Everything you need is in the ~slouch.api~ namespace.
   (:require [slouch.api :as slouch]))
 #+end_src
 
-Create a database.
+Create a database. See [[#database][API]].
 
 #+begin_src clojure
 
@@ -63,7 +62,7 @@ Create a database.
 
 #+end_src
 
-Documents are like atoms.
+Documents are like Clojure atoms. See [[#documents][API]].
 
 #+begin_src clojure
 (let [doc (slouch/insert db {:sales 0})]
@@ -84,7 +83,8 @@ Documents are like atoms.
   )
 #+end_src
 
-Views
+Query views. See [[#views][API]].
+
 #+begin_src clojure
 
 (slouch/rows db :albums/by-artist {:start-key "ABBA"
@@ -148,6 +148,17 @@ Views
 
 ** Views
 
+src_clojure{(slouch/view db ddoc-view opts)} is the main interface for
+querying CouchDB views. Additional functions are provided to make working
+with the results more ergonomic.
+
+To query a view, provide the design document and view name by one of two means:
+
+- a vector src_clojure{["design-doc" "view-name"]}.
+- a namespaced keyword src_clojure{:design-doc/view-name}.
+
+All view functions take [[#view-options][view options]].
+
 #+begin_src clojure
 ;; Query a view for :offset, :rows, and :total-rows. See "View options"
 (slouch/view db :albums/by-name)
@@ -179,6 +190,8 @@ Views
 #+end_src
 
 *** View options
+View options come directly from the [[https://docs.couchdb.org/en/stable/api/ddoc/views.html#db-design-design-doc-view-view-name][CouchDB view endpoint]].
+
 #+begin_src clojure
 {;; Include conflicts information in response. Ignored if include-docs isn’t true. Default is false.
  :conflicts? false
@@ -221,7 +234,7 @@ Views
  :update-seq? false}
  #+end_src
 
-*** Unsupported Options
+**** Unsupported Options
 #+begin_src clojure
 {;; Include the Base64-encoded content of attachments in the documents that are included if include-docs is true. Ignored if include-docs isn’t true. Default is false.
  :attachments? false
